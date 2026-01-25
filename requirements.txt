@@ -1,0 +1,5 @@
+httpx
+beautifulsoup4
+pyyaml
+jinja2
+rich
