@@ -24,11 +24,14 @@ class Injector:
         payloads = self.load_payloads(payload_file)
 
         for target in self.attack_surface:
-            for payload in payloads:
-                data = {}
-                for p in target["params"]:
-                    data[p] = payload
 
+            # Baseline request
+            baseline_data = {p: "test" for p in target["params"]}
+            baseline_resp = self.send(target["url"], target["method"], baseline_data)
+            baseline_len = len(baseline_resp.text) if baseline_resp else 0
+
+            for payload in payloads:
+                data = {p: payload for p in target["params"]}
                 response = self.send(target["url"], target["method"], data)
 
                 if response:
@@ -38,6 +41,7 @@ class Injector:
                         "payload": payload,
                         "status": response.status_code,
                         "length": len(response.text),
+                        "baseline_length": baseline_len,
                         "snippet": response.text[:200]
                     })
 

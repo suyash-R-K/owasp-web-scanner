@@ -1,4 +1,3 @@
-import re
 import json
 
 SQL_ERRORS = [
@@ -24,12 +23,24 @@ class Analyzer:
 
     def analyze(self):
         for r in self.responses:
+
+            # Error-based SQL Injection
             if self.is_sqli(r["snippet"]):
                 self.findings.append({
-                    "type": "SQL Injection",
+                    "type": "SQL Injection (error-based)",
                     "url": r["url"],
                     "payload": r["payload"],
                     "evidence": r["snippet"]
+                })
+
+            # Blind SQL Injection via response length diff
+            diff = abs(r["length"] - r["baseline_length"])
+            if diff > 100:
+                self.findings.append({
+                    "type": "SQL Injection (blind)",
+                    "url": r["url"],
+                    "payload": r["payload"],
+                    "evidence": f"Response length changed by {diff} bytes"
                 })
 
         with open("evidence/findings.json", "w") as f:
