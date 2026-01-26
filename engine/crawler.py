@@ -27,7 +27,7 @@ class Crawler:
                 "user_token": token
             }
             
-            resp = self.client.post(login_url, data=data)
+            resp = self.client.post(login_url, data=data, follow_redirects=True)
             
             if "Logout" in resp.text or "Welcome" in resp.text:
                 print("[+] Logged into DVWA")
@@ -41,9 +41,18 @@ class Crawler:
         return urlparse(url).netloc == urlparse(self.target).netloc
 
     def crawl(self, url):
+        # Normalize URL to avoid loops
+        url = url.split("?")[0].rstrip("/")
+        
         if url in self.visited:
             return
 
+        # Avoid logging out or resetting the DB
+        exclude = ["logout.php", "setup.php", "login.php", "security.php"]
+        if any(x in url for x in exclude):
+            return
+
+        print(f"[*] Crawling: {url}")
         self.visited.add(url)
 
         try:
@@ -84,7 +93,26 @@ class Crawler:
                 if self.is_same_domain(full):
                     self.crawl(full)
 
+    def setup_dvwa(self):
+        try:
+            print("[*] Attempting to setup/reset DVWA database...")
+            setup_url = urljoin(self.target, "/setup.php")
+            resp = self.client.get(setup_url)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            token_input = soup.find("input", {"name": "user_token"})
+            token = token_input.get("value") if token_input else ""
+            
+            data = {
+                "create_db": "Create / Reset Database",
+                "user_token": token
+            }
+            self.client.post(setup_url, data=data)
+            print("[+] DVWA Database setup/reset completed")
+        except Exception as e:
+            print(f"[!] DVWA setup failed: {e}")
+
     def run(self):
+        self.setup_dvwa()
         self.login_dvwa()
         self.crawl(self.target)
 

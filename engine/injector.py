@@ -65,7 +65,8 @@ class Injector:
                             "status": response.status_code,
                             "length": len(response.text),
                             "baseline_length": baseline_len,
-                            "snippet": response.text[:50000]
+                            "snippet": response.text[:50000],
+                            "body": response.text
                         })
 
         with open("evidence/responses.json", "w") as f:

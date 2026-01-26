@@ -12,12 +12,12 @@ print("[+] Attack surface size:", len(surface))
 injector = Injector(surface, crawler.client)
 
 # Run SQLi
-responses = injector.run("payloads/sqli.yaml")
+injector.run("payloads/sqli.yaml")
 
 # Run XSS
-responses += injector.run("payloads/xss.yaml")
+injector.run("payloads/xss.yaml")
 
-analyzer = Analyzer(responses)
+analyzer = Analyzer(injector.results)
 findings = analyzer.analyze()
 
 print("\n[+] Vulnerabilities Found:")
