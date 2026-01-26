@@ -21,26 +21,51 @@ class Analyzer:
                 return True
         return False
 
+    # DVWA-style content detection
+    def count_rows(self, text):
+        return text.count("ID:") + text.count("Surname:") + text.count("First name")
+
     def analyze(self):
         for r in self.responses:
+            snippet = r["snippet"]
 
-            # Error-based SQL Injection
-            if self.is_sqli(r["snippet"]):
+            # 1️⃣ Error-based SQL Injection
+            if self.is_sqli(snippet):
                 self.findings.append({
                     "type": "SQL Injection (error-based)",
                     "url": r["url"],
                     "payload": r["payload"],
-                    "evidence": r["snippet"]
+                    "evidence": snippet[:200]
                 })
 
-            # Blind SQL Injection via response length diff
+            # 2️⃣ Content-based SQL Injection (DVWA, real apps)
+            rows = self.count_rows(snippet)
+            if rows > 1:
+                self.findings.append({
+                    "type": "SQL Injection (content-based)",
+                    "url": r["url"],
+                    "payload": r["payload"],
+                    "evidence": f"Returned {rows} database rows"
+                })
+
+            # 3️⃣ Blind SQL Injection (length diff)
             diff = abs(r["length"] - r["baseline_length"])
-            if diff > 100:
+            if diff > 120:
                 self.findings.append({
                     "type": "SQL Injection (blind)",
                     "url": r["url"],
                     "payload": r["payload"],
                     "evidence": f"Response length changed by {diff} bytes"
+                })
+
+            # 4️⃣ XSS — reflected or HTML-encoded
+            encoded = r["payload"].replace("<", "&lt;").replace(">", "&gt;")
+            if r["payload"] in snippet or encoded in snippet:
+                self.findings.append({
+                    "type": "Cross-Site Scripting (XSS)",
+                    "url": r["url"],
+                    "payload": r["payload"],
+                    "evidence": snippet[:200]
                 })
 
         with open("evidence/findings.json", "w") as f:

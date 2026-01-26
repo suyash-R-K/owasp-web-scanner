@@ -2,20 +2,25 @@ from engine.crawler import Crawler
 from engine.injector import Injector
 from engine.analyzer import Analyzer
 
-target = "http://127.0.0.1:3000"  # Juice Shop or DVWA
+target = input("Enter target URL : ").strip()
 
 crawler = Crawler(target)
 surface = crawler.run()
 
-injector = Injector(surface)
+print("[+] Attack surface size:", len(surface))
+
+injector = Injector(surface, crawler.client)
+
+# Run SQLi
 responses = injector.run("payloads/sqli.yaml")
+
+# Run XSS
+responses += injector.run("payloads/xss.yaml")
 
 analyzer = Analyzer(responses)
 findings = analyzer.analyze()
 
-
 print("\n[+] Vulnerabilities Found:")
-
 if not findings:
     print("0 issues detected")
 else:
