@@ -8,7 +8,7 @@ A session-aware vulnerability scanner that tests for OWASP Top 10 vulnerabilitie
 
 ## Overview
 
-This scanner performs authenticated vulnerability assessments on web applications, with focus on SQL Injection and Cross-Site Scripting (XSS) detection. Built from scratch to demonstrate security testing principles, it handles complex scenarios like CSRF token management and authenticated crawling.
+This scanner performs authenticated vulnerability assessments on web applications, focusing on SQL Injection and Cross-Site Scripting (XSS) detection. Built from scratch to demonstrate security testing principles, it handles complex scenarios like CSRF token management and authenticated crawling.
 
 ### Supported Test Environments
 - [DVWA (Damn Vulnerable Web Application)](http://www.dvwa.co.uk/)
@@ -23,26 +23,32 @@ This scanner performs authenticated vulnerability assessments on web application
 - Full login flow support with session persistence
 - Automatic CSRF token detection and handling
 - Session-aware request management
+- DVWA-specific: Automatic database setup and reset
 
 ### Crawling & Discovery
 - Recursive web crawler with depth control
 - Automatic parameter discovery (GET/POST)
 - Link extraction and mapping
+- Attack surface analysis
 
 ### Vulnerability Detection
-- **SQL Injection**
-  - Error-based detection
-  - Blind injection (time-based)
-  - Content-based analysis
-- **Cross-Site Scripting (XSS)**
-  - Reflected XSS detection
-  - Encoded payload handling
-  - Context-aware testing
+
+**SQL Injection**
+- Error-based detection
+- Blind injection (time-based)
+- Content-based analysis
+- Multi-engine confirmation system
+
+**Cross-Site Scripting (XSS)**
+- Reflected XSS detection
+- Encoded payload handling
+- Context-aware testing
 
 ### Reporting
-- Evidence-based JSON reports
-- Detailed vulnerability documentation
-- HTML report generation (coming soon)
+- Console output with severity ratings
+- Detailed vulnerability classification
+- Detection engine attribution
+- Example payload documentation
 
 ---
 
@@ -53,6 +59,7 @@ This scanner performs authenticated vulnerability assessments on web application
 - pip package manager
 
 ### Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/suyash-R-K/owasp-web-scanner
@@ -70,77 +77,76 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Basic Scan
+### Interactive Mode
 ```bash
-python scanner.py --url http://target-app.local
+python scanner.py
+```
+The scanner will prompt for the target URL and handle authentication automatically.
+
+### Scanning Any Web Application
+```bash
+python scanner.py
+Enter target URL: http://target-application.local
 ```
 
-### Authenticated Scan
-```bash
-python scanner.py \
-  --url http://dvwa.local \
-  --login-url http://dvwa.local/login.php \
-  --username admin \
-  --password password
-```
-
-### Advanced Options
-```bash
-python scanner.py \
-  --url http://target.local \
-  --depth 3 \
-  --threads 5 \
-  --output results.json
-```
-
-### Configuration Options
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--url` | Target base URL (required) | - |
-| `--login-url` | Login page URL | None |
-| `--username` | Login username | None |
-| `--password` | Login password | None |
-| `--depth` | Crawl depth | 2 |
-| `--threads` | Number of threads | 1 |
-| `--output` | Output file path | `scan_results.json` |
+### DVWA-Specific Features
+When scanning DVWA, the scanner automatically:
+- Sets up and resets the database
+- Authenticates with default credentials
+- Handles DVWA-specific session management
 
 ---
 
 ## Example Output
-```json
-{
-  "scan_date": "2024-01-26T10:30:00",
-  "target": "http://dvwa.local",
-  "vulnerabilities": [
-    {
-      "type": "SQL Injection",
-      "severity": "HIGH",
-      "url": "http://dvwa.local/vulnerabilities/sqli/",
-      "parameter": "id",
-      "payload": "1' OR '1'='1",
-      "evidence": "You have an error in your SQL syntax"
-    }
-  ]
-}
+
+```
+[*] Attempting to setup/reset DVWA database...
+[+] DVWA Database setup/reset completed
+[+] Logged into DVWA
+[*] Crawling: http://127.0.0.1:8080
+[*] Crawling: http://127.0.0.1:8080/vulnerabilities/sqli
+[*] Crawling: http://127.0.0.1:8080/vulnerabilities/xss_r
+[+] Attack surface size: 13
+
+[+] Vulnerabilities Found:
+
+[Critical] SQL Injection (Very High)
+  URL: http://127.0.0.1:8080/vulnerabilities/sqli
+  Example Payload: ' OR '1'='1
+  Detection Engines: error, content, blind
+
+[High] SQL Injection (High)
+  URL: http://127.0.0.1:8080/vulnerabilities/brute
+  Example Payload: ' OR 1=1--
+  Detection Engines: error, blind
+
+[Medium] Cross-Site Scripting (XSS) (High)
+  URL: http://127.0.0.1:8080/vulnerabilities/xss_r
+  Example Payload: <script>alert(1337)</script>
+  Detection Engines: reflection
 ```
 
 ---
 
-## Architecture
+## Severity Ratings
+
+The scanner uses a multi-engine detection system to classify vulnerability severity:
+
+| Rating | Description | Detection Engines |
+|--------|-------------|-------------------|
+| **Critical** | Confirmed by 3+ detection methods | error, content, blind |
+| **High** | Confirmed by 2+ detection methods | error, blind |
+| **Medium** | Confirmed by single detection method | reflection, error, or blind |
+
+---
+
+## Project Structure
+
 ```
 owasp-web-scanner/
-├── scanner.py           # Main entry point
-├── core/
-│   ├── crawler.py       # Web crawling logic
-│   ├── auth.py          # Authentication handler
-│   └── session.py       # Session management
-├── modules/
-│   ├── sqli.py          # SQL injection tests
-│   └── xss.py           # XSS detection
-├── utils/
-│   ├── payloads.py      # Attack payloads
-│   └── reporter.py      # Report generation
-└── requirements.txt
+├── scanner.py           # Main scanner implementation
+├── requirements.txt     # Python dependencies
+└── results/            # Scan results directory
 ```
 
 ---
@@ -159,11 +165,13 @@ Contributions are welcome! Please:
 
 ## Roadmap
 
-- [ ] HTML report generation
-- [ ] Additional OWASP Top 10 checks (IDOR, SSRF, etc.)
+- [ ] JSON/HTML report generation
+- [ ] Command-line argument support
+- [ ] Additional OWASP Top 10 checks (CSRF, File Upload, XXE)
+- [ ] Custom authentication handlers
 - [ ] Multi-threaded scanning optimization
-- [ ] Plugin architecture for custom tests
-- [ ] CI/CD integration support
+- [ ] Modular architecture refactoring
+- [ ] Plugin system for custom tests
 
 ---
 
@@ -171,13 +179,7 @@ Contributions are welcome! Please:
 
 This tool is provided for **educational purposes only**. Unauthorized access to computer systems is illegal. Always obtain explicit written permission before testing any system you do not own.
 
-The authors assume no liability for misuse or damage caused by this project.
-
----
-
-## License
-
-[MIT License](LICENSE)
+The authors assume no liability for misuse or damage caused by this program.
 
 ---
 
@@ -190,5 +192,5 @@ The authors assume no liability for misuse or damage caused by this project.
 
 ## Acknowledgments
 
-- OWASP Foundation for security testing standards
+- OWASP Foundation for vulnerability classification standards
 - DVWA and Juice Shop projects for testing environments
