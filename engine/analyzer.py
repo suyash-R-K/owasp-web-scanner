@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 
 SQL_ERRORS = [
     "SQL syntax",
@@ -10,10 +11,25 @@ SQL_ERRORS = [
     "PostgreSQL"
 ]
 
+SEVERITY_RANK = {
+    "Low": 1,
+    "Medium": 2,
+    "High": 3,
+    "Critical": 4
+}
+
+CONFIDENCE_RANK = {
+    "Low": 1,
+    "Medium": 2,
+    "High": 3,
+    "Very High": 4
+}
+
 class Analyzer:
     def __init__(self, responses):
         self.responses = responses
-        self.findings = []
+        self.raw_findings = []
+        self.merged_findings = []
 
     def is_sqli(self, text):
         for err in SQL_ERRORS:
@@ -21,55 +37,97 @@ class Analyzer:
                 return True
         return False
 
-    # DVWA-style content detection
     def count_rows(self, text):
         return text.count("ID:") + text.count("Surname:") + text.count("First name")
 
     def analyze(self):
+        # --- Stage 1: Raw detection (same as before) ---
         for r in self.responses:
             snippet = r["snippet"]
 
-            # 1️⃣ Error-based SQL Injection
+            # Error-based SQLi
             if self.is_sqli(snippet):
-                self.findings.append({
-                    "type": "SQL Injection (error-based)",
+                self.raw_findings.append({
                     "url": r["url"],
-                    "payload": r["payload"],
-                    "evidence": snippet[:200]
+                    "type": "SQL Injection",
+                    "engine": "error",
+                    "severity": "High",
+                    "confidence": "High",
+                    "payload": r["payload"]
                 })
 
-            # 2️⃣ Content-based SQL Injection (DVWA, real apps)
+            # Content-based SQLi
             rows = self.count_rows(snippet)
             if rows > 1:
-                self.findings.append({
-                    "type": "SQL Injection (content-based)",
+                self.raw_findings.append({
                     "url": r["url"],
-                    "payload": r["payload"],
-                    "evidence": f"Returned {rows} database rows"
+                    "type": "SQL Injection",
+                    "engine": "content",
+                    "severity": "Critical",
+                    "confidence": "Medium",
+                    "payload": r["payload"]
                 })
 
-            # 3️⃣ Blind SQL Injection (length diff)
+            # Blind SQLi
             diff = abs(r["length"] - r["baseline_length"])
-            if diff > 120:
-                self.findings.append({
-                    "type": "SQL Injection (blind)",
+            threshold = r["baseline_length"] * 0.10
+            if diff > threshold and diff > 50:
+                self.raw_findings.append({
                     "url": r["url"],
-                    "payload": r["payload"],
-                    "evidence": f"Response length changed by {diff} bytes"
+                    "type": "SQL Injection",
+                    "engine": "blind",
+                    "severity": "High",
+                    "confidence": "Low",
+                    "payload": r["payload"]
                 })
 
-            # 4️⃣ XSS — reflected or HTML-encoded
+            # XSS
             encoded = r["payload"].replace("<", "&lt;").replace(">", "&gt;")
-            if r["payload"] in snippet or encoded in snippet:
-                self.findings.append({
-                    "type": "Cross-Site Scripting (XSS)",
+            if ("<" in r["payload"] or ">" in r["payload"]) and (r["payload"] in snippet or encoded in snippet):
+                self.raw_findings.append({
                     "url": r["url"],
-                    "payload": r["payload"],
-                    "evidence": snippet[:200]
+                    "type": "Cross-Site Scripting (XSS)",
+                    "engine": "reflection",
+                    "severity": "Medium",
+                    "confidence": "High",
+                    "payload": r["payload"]
                 })
+
+        # --- Stage 2: Merge by (url, type) ---
+        grouped = defaultdict(list)
+        for f in self.raw_findings:
+            grouped[(f["url"], f["type"])].append(f)
+
+        for (url, vtype), items in grouped.items():
+            max_sev = "Low"
+            engines = set()
+            payloads = []
+
+            for i in items:
+                engines.add(i["engine"])
+                payloads.append(i["payload"])
+                if SEVERITY_RANK[i["severity"]] > SEVERITY_RANK[max_sev]:
+                    max_sev = i["severity"]
+
+            # Confidence increases when multiple engines agree
+            if len(engines) >= 3:
+                confidence = "Very High"
+            elif len(engines) == 2:
+                confidence = "High"
+            else:
+                confidence = items[0]["confidence"]
+
+            self.merged_findings.append({
+                "url": url,
+                "type": vtype,
+                "severity": max_sev,
+                "confidence": confidence,
+                "engines": list(engines),
+                "example_payload": payloads[0]
+            })
 
         with open("evidence/findings.json", "w") as f:
-            json.dump(self.findings, f, indent=2)
+            json.dump(self.merged_findings, f, indent=2)
 
-        return self.findings
+        return self.merged_findings
 

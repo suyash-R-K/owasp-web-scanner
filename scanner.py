@@ -25,5 +25,9 @@ if not findings:
     print("0 issues detected")
 else:
     for f in findings:
-        print(f["type"], f["url"], f["payload"])
+        print(f"[{f.get('severity', 'UNK')}] {f['type']} ({f.get('confidence', 'UNK')})")
+        print(f"  URL: {f['url']}")
+        print(f"  Example Payload: {f['example_payload']}")
+        print(f"  Detection Engines: {', '.join(f['engines'])}\n")
+
 

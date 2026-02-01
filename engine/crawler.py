@@ -47,9 +47,14 @@ class Crawler:
         if url in self.visited:
             return
 
-        # Avoid logging out or resetting the DB
-        exclude = ["logout.php", "setup.php", "login.php", "security.php"]
-        if any(x in url for x in exclude):
+        if url in self.visited:
+            return
+
+        # Filter static endpoints and dangerous paths
+        exclude_paths = ["logout.php", "setup.php", "login.php", "security.php", "phpinfo.php"]
+        exclude_exts = [".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg"]
+        
+        if any(x in url for x in exclude_paths) or any(url.endswith(ext) for ext in exclude_exts):
             return
 
         print(f"[*] Crawling: {url}")

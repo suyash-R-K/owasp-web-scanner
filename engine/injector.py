@@ -48,8 +48,9 @@ class Injector:
             # Inject payloads
             for payload in payloads:
                 for param in target["params"]:
-                    # Don't fuzz hidden fields (CSRF tokens)
-                    if param in hidden:
+                    # Skip hidden fields and non-fuzzable parameters (buttons, submits)
+                    ignored_params = {"submit", "login", "btn", "action", "button", "create_db"}
+                    if param.lower() in ignored_params or param in hidden:
                         continue
 
                     data = baseline_data.copy()
