@@ -11,6 +11,31 @@ SQL_ERRORS = [
     "PostgreSQL"
 ]
 
+CMD_SIGNS = [
+    "uid=",
+    "gid=",
+    "www-data",
+    "root:",
+    "/bin/bash",
+    "Linux",
+    "Darwin"
+]
+
+LFI_SIGNS = [
+    "root:x",
+    "daemon:x",
+    "/bin/bash",
+    "[extensions]",
+    "[fonts]"
+]
+
+SSRF_SIGNS = [
+    "ami-id",
+    "instance-id",
+    "availability-zone",
+    "meta-data/iam"
+]
+
 SEVERITY_RANK = {
     "Low": 1,
     "Medium": 2,
@@ -41,11 +66,11 @@ class Analyzer:
         return text.count("ID:") + text.count("Surname:") + text.count("First name")
 
     def analyze(self):
-        # --- Stage 1: Raw detection (same as before) ---
         for r in self.responses:
             snippet = r["snippet"]
+            payload = r["payload"]
 
-            # Error-based SQLi
+            # SQLi – error
             if self.is_sqli(snippet):
                 self.raw_findings.append({
                     "url": r["url"],
@@ -53,10 +78,10 @@ class Analyzer:
                     "engine": "error",
                     "severity": "High",
                     "confidence": "High",
-                    "payload": r["payload"]
+                    "payload": payload
                 })
 
-            # Content-based SQLi
+            # SQLi – content
             rows = self.count_rows(snippet)
             if rows > 1:
                 self.raw_findings.append({
@@ -65,10 +90,10 @@ class Analyzer:
                     "engine": "content",
                     "severity": "Critical",
                     "confidence": "Medium",
-                    "payload": r["payload"]
+                    "payload": payload
                 })
 
-            # Blind SQLi
+            # SQLi – blind
             diff = abs(r["length"] - r["baseline_length"])
             threshold = r["baseline_length"] * 0.10
             if diff > threshold and diff > 50:
@@ -78,22 +103,61 @@ class Analyzer:
                     "engine": "blind",
                     "severity": "High",
                     "confidence": "Low",
-                    "payload": r["payload"]
+                    "payload": payload
                 })
 
             # XSS
-            encoded = r["payload"].replace("<", "&lt;").replace(">", "&gt;")
-            if ("<" in r["payload"] or ">" in r["payload"]) and (r["payload"] in snippet or encoded in snippet):
+            encoded = payload.replace("<", "&lt;").replace(">", "&gt;")
+            if ("<" in payload or ">" in payload) and (payload in snippet or encoded in snippet):
                 self.raw_findings.append({
                     "url": r["url"],
                     "type": "Cross-Site Scripting (XSS)",
                     "engine": "reflection",
                     "severity": "Medium",
                     "confidence": "High",
-                    "payload": r["payload"]
+                    "payload": payload
                 })
 
-        # --- Stage 2: Merge by (url, type) ---
+            # Command Injection
+            for sig in CMD_SIGNS:
+                if sig in snippet:
+                    self.raw_findings.append({
+                        "url": r["url"],
+                        "type": "Command Injection",
+                        "engine": "output",
+                        "severity": "Critical",
+                        "confidence": "High",
+                        "payload": payload
+                    })
+                    break
+
+            # Local File Inclusion
+            for sig in LFI_SIGNS:
+                if sig in snippet:
+                    self.raw_findings.append({
+                        "url": r["url"],
+                        "type": "Local File Inclusion",
+                        "engine": "file",
+                        "severity": "High",
+                        "confidence": "High",
+                        "payload": payload
+                    })
+                    break
+
+            # SSRF – only if payload was a URL
+            if payload.startswith("http"):
+                for sig in SSRF_SIGNS:
+                    if sig in snippet:
+                        self.raw_findings.append({
+                            "url": r["url"],
+                            "type": "Server-Side Request Forgery",
+                            "engine": "network",
+                            "severity": "High",
+                            "confidence": "High",
+                            "payload": payload
+                        })
+                        break
+
         grouped = defaultdict(list)
         for f in self.raw_findings:
             grouped[(f["url"], f["type"])].append(f)
@@ -109,7 +173,6 @@ class Analyzer:
                 if SEVERITY_RANK[i["severity"]] > SEVERITY_RANK[max_sev]:
                     max_sev = i["severity"]
 
-            # Confidence increases when multiple engines agree
             if len(engines) >= 3:
                 confidence = "Very High"
             elif len(engines) == 2:

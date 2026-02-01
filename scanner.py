@@ -5,6 +5,13 @@ from engine.analyzer import Analyzer
 from engine.report import generate_report
 
 target = input("Enter target URL : ").strip()
+if target.startswith("http:/") and not target.startswith("http://"):
+    target = target.replace("http:/", "http://", 1)
+elif target.startswith("https:/") and not target.startswith("https://"):
+    target = target.replace("https:/", "https://", 1)
+
+if not target.startswith("http"):
+    target = "http://" + target
 
 fingerprint = Fingerprinter(target).detect()
 print(f"[+] Target profile: {fingerprint}")
@@ -23,6 +30,9 @@ print(f"[+] Attack surface size: {len(surface)}")
 injector = Injector(surface, crawler.client)
 injector.run("payloads/sqli.yaml")
 injector.run("payloads/xss.yaml")
+injector.run("payloads/cmd.yaml")
+injector.run("payloads/lfi.yaml")
+injector.run("payloads/ssrf.yaml")
 
 analyzer = Analyzer(injector.results)
 findings = analyzer.analyze()

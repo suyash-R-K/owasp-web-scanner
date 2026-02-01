@@ -24,7 +24,8 @@ class Crawler:
                 data["user_token"] = token
                 
             resp = self.client.post(self.target + "/setup.php", data=data)
-        except Exception:
+        except Exception as e:
+            print(f"[!] Setup failed: {e}")
             pass
 
     def login_dvwa(self):
@@ -47,7 +48,8 @@ class Crawler:
             # Force security low with correct scope
             self.client.cookies.set("security", "low", path="/")
 
-        except Exception:
+        except Exception as e:
+            print(f"[!] Login failed: {e}")
             pass
 
     def crawl(self, url):
@@ -61,7 +63,8 @@ class Crawler:
 
         try:
             r = self.client.get(url, timeout=10)
-        except:
+        except Exception as e:
+            print(f"[!] Warning: Failed to crawl {url}: {e}")
             return
 
         soup = BeautifulSoup(r.text, "html.parser")

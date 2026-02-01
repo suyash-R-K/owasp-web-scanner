@@ -1,0 +1,8 @@
+- "../../../../etc/passwd"
+- "../../../../../etc/passwd"
+- "..%2f..%2f..%2f..%2fetc%2fpasswd"
+- "/etc/passwd"
+- "/proc/self/environ"
+- "/etc/hosts"
+- "C:\\Windows\\win.ini"
+
