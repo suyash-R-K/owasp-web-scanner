@@ -9,14 +9,30 @@ class Crawler:
         self.attack_surface = []
         self.client = httpx.Client(follow_redirects=True)
 
-    # DVWA login
+    def is_same_domain(self, url):
+        return urlparse(url).netloc == urlparse(self.target).netloc
+
+    def setup_dvwa(self):
+        try:
+            r = self.client.get(self.target + "/setup.php")
+            soup = BeautifulSoup(r.text, "html.parser")
+            token_input = soup.find("input", {"name": "user_token"})
+            token = token_input.get("value") if token_input else ""
+            
+            data = {"create_db": "Create / Reset Database"}
+            if token:
+                data["user_token"] = token
+                
+            resp = self.client.post(self.target + "/setup.php", data=data)
+        except Exception:
+            pass
+
     def login_dvwa(self):
         try:
             login_url = urljoin(self.target, "/login.php")
-            
-            # Fetch login page to get CSRF token
             response = self.client.get(login_url)
             soup = BeautifulSoup(response.text, "html.parser")
+
             token_input = soup.find("input", {"name": "user_token"})
             token = token_input.get("value") if token_input else ""
 
@@ -26,38 +42,21 @@ class Crawler:
                 "Login": "Login",
                 "user_token": token
             }
-            
-            resp = self.client.post(login_url, data=data, follow_redirects=True)
-            
-            if "Logout" in resp.text or "Welcome" in resp.text:
-                print("[+] Logged into DVWA")
-            else:
-                print("[!] DVWA login failed (incorrect credentials or token)")
-                
-        except Exception as e:
-            print(f"[!] DVWA login failed: {e}")
 
-    def is_same_domain(self, url):
-        return urlparse(url).netloc == urlparse(self.target).netloc
+            self.client.post(login_url, data=data)
+            # Force security low with correct scope
+            self.client.cookies.set("security", "low", path="/")
+
+        except Exception:
+            pass
 
     def crawl(self, url):
-        # Normalize URL to avoid loops
-        url = url.split("?")[0].rstrip("/")
-        
         if url in self.visited:
             return
-
-        if url in self.visited:
-            return
-
-        # Filter static endpoints and dangerous paths
-        exclude_paths = ["logout.php", "setup.php", "login.php", "security.php", "phpinfo.php"]
-        exclude_exts = [".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg"]
         
-        if any(x in url for x in exclude_paths) or any(url.endswith(ext) for ext in exclude_exts):
+        if "logout" in url.lower():
             return
 
-        print(f"[*] Crawling: {url}")
         self.visited.add(url)
 
         try:
@@ -67,13 +66,11 @@ class Crawler:
 
         soup = BeautifulSoup(r.text, "html.parser")
 
-        # Extract forms
         for form in soup.find_all("form"):
             action = form.get("action")
             method = form.get("method", "get").upper()
 
-            # Correct DVWA form handling
-            if not action or action == "#" or action == ".":
+            if not action or action in ["#", "."]:
                 full_url = url
             else:
                 full_url = urljoin(url, action)
@@ -90,7 +87,6 @@ class Crawler:
                 "params": params
             })
 
-        # Follow links
         for link in soup.find_all("a"):
             href = link.get("href")
             if href:
@@ -98,38 +94,26 @@ class Crawler:
                 if self.is_same_domain(full):
                     self.crawl(full)
 
-    def setup_dvwa(self):
-        try:
-            print("[*] Attempting to setup/reset DVWA database...")
-            setup_url = urljoin(self.target, "/setup.php")
-            resp = self.client.get(setup_url)
-            soup = BeautifulSoup(resp.text, "html.parser")
-            token_input = soup.find("input", {"name": "user_token"})
-            token = token_input.get("value") if token_input else ""
-            
-            data = {
-                "create_db": "Create / Reset Database",
-                "user_token": token
-            }
-            self.client.post(setup_url, data=data)
-            print("[+] DVWA Database setup/reset completed")
-        except Exception as e:
-            print(f"[!] DVWA setup failed: {e}")
+    def run_generic(self):
+        self.crawl(self.target)
+        return self.attack_surface
 
-    def run(self):
+    def run_dvwa(self):
         self.setup_dvwa()
         self.login_dvwa()
+
         self.crawl(self.target)
 
-        # DVWA vulnerable pages
         dvwa_paths = [
+            "/vulnerabilities/brute/",
             "/vulnerabilities/sqli/",
+            "/vulnerabilities/sqli_blind/",
             "/vulnerabilities/xss_r/",
             "/vulnerabilities/xss_s/",
         ]
 
         for path in dvwa_paths:
-            self.crawl(urljoin(self.target, path))
+            self.crawl(urljoin(self.target, path + "/"))
 
         return self.attack_surface
 

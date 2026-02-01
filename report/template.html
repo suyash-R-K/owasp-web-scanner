@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>OWASP Web Scanner Report</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f4f4f4; padding:20px; }
+h1 { text-align:center; }
+table { width:100%; border-collapse:collapse; background:white; }
+th, td { padding:10px; border:1px solid #ddd; text-align:left; }
+th { background:#222; color:white; }
+.Critical { background:#ff4d4d; color:white; }
+.High { background:#ff944d; }
+.Medium { background:#ffe066; }
+</style>
+</head>
+<body>
+
+<h1>OWASP Web Scanner Report</h1>
+
+<table>
+<tr>
+<th>Severity</th>
+<th>Vulnerability</th>
+<th>URL</th>
+<th>Confidence</th>
+<th>Detection Engines</th>
+<th>Example Payload</th>
+</tr>
+
+{% for f in findings %}
+<tr class="{{ f.severity }}">
+<td>{{ f.severity }}</td>
+<td>{{ f.type }}</td>
+<td>{{ f.url }}</td>
+<td>{{ f.confidence }}</td>
+<td>{{ ", ".join(f.engines) }}</td>
+<td>{{ f.example_payload }}</td>
+</tr>
+{% endfor %}
+
+</table>
+
+</body>
+</html>
+
